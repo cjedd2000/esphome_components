@@ -10,6 +10,7 @@ LAST_ID = "last_id"
 SENSOR_ID = "sensor_id"
 MOTION_SENSORS = "motion_sensors"
 MOTION_TIMEOUT = "motion_timeout"
+DATA_SENS = "data_sensor"
 
 htzsafe_owl_alarm_ns = cg.esphome_ns.namespace("htzsafe_owl_alarm")
 HtzsafeOwlAlarm = htzsafe_owl_alarm_ns.class_(
@@ -23,6 +24,9 @@ MotionSensorSchema = cv.Schema(
         cv.Required(SENSOR_ID): cv.int_range(0, 65535),
         # Timeout in seconds, limit to 1 hour
         cv.Optional(MOTION_TIMEOUT): cv.int_range(1, 3600),
+        cv.Optional(DATA_SENS): sensor.sensor_schema(
+            icon=ICON_EMPTY, accuracy_decimals=0
+        ),
     }
 ).extend(
     binary_sensor.binary_sensor_schema(
@@ -67,3 +71,7 @@ async def to_code(config):
                 )
             else:
                 cg.add(var.add_motion_sensor(sens, item[SENSOR_ID]))
+
+            if DATA_SENS in item:
+                dataSens = await sensor.new_sensor(item[DATA_SENS])
+                cg.add(var.add_data_sensor(dataSens, item[SENSOR_ID]))
