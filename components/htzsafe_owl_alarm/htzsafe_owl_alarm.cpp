@@ -8,39 +8,8 @@ namespace htzsafe_owl_alarm {
 
 static const char *TAG = "htzsafe_owl_alarm.component";
 
-typedef struct SensorData {
-  int32_t sensorId;
-
-  uint8_t data3;
-  uint8_t data2;
-  uint8_t data1;
-  uint8_t data0;
-} SensorData;
-
-typedef enum state { Idle, Start2, Start1, Start0, IdHigh, IdLow, Data3, Data2, Data1, Data0 } State;
-
-/*******************************************************************
- * Private Function Prototypes
- *******************************************************************/
-uint32_t millis();
-int32_t sensorStateMachine(uint8_t serialByte, SensorData *data);
-
-/*
- * Headder Bytes
- */
-const uint8_t START_BYTE2 = 235;
-const uint8_t START_BYTE1 = 175;
-const uint8_t START_BYTE0 = 5;
-
-int32_t sensorStateMachine(uint8_t serialByte, SensorData *data) {
-  static State SensorState = Idle;
-  static uint16_t CurrentSensorId = 0;
-
-  static uint8_t data3 = 0;
-  static uint8_t data2 = 0;
-  static uint8_t data1 = 0;
-  static uint8_t data0 = 0;
-
+int32_t HtzsafeOwlAlarm::sensor_state_machine(uint8_t serialByte, SensorData *data) {
+  // Run State Machine
   switch (SensorState) {
     case Idle:
       if (serialByte == START_BYTE2) {
@@ -75,22 +44,22 @@ int32_t sensorStateMachine(uint8_t serialByte, SensorData *data) {
       break;
 
     case IdLow:
-      data3 = serialByte;
+      SensData3 = serialByte;
       SensorState = Data3;
       break;
 
     case Data3:
-      data2 = serialByte;
+      SensData2 = serialByte;
       SensorState = Data2;
       break;
 
     case Data2:
-      data1 = serialByte;
+      SensData1 = serialByte;
       SensorState = Data1;
       break;
 
     case Data1:
-      data0 = serialByte;
+      SensData0 = serialByte;
       SensorState = Data0;
       break;
 
@@ -110,10 +79,10 @@ int32_t sensorStateMachine(uint8_t serialByte, SensorData *data) {
     CurrentSensorId = 0;
 
     if (data != nullptr) {
-      data->data3 = data3;
-      data->data2 = data2;
-      data->data1 = data1;
-      data->data0 = data0;
+      data->data3 = SensData3;
+      data->data2 = SensData2;
+      data->data1 = SensData1;
+      data->data0 = SensData0;
     }
   } else {
     retValue = -1;
@@ -121,8 +90,6 @@ int32_t sensorStateMachine(uint8_t serialByte, SensorData *data) {
 
   return retValue;
 }
-
-uint32_t millis() { return esp_timer_get_time() / 1000; }
 
 htzsafe_owl_alarm::HtzsafeOwlAlarm::HtzsafeOwlAlarm() {
   // Init sensors
@@ -159,7 +126,7 @@ void HtzsafeOwlAlarm::loop() {
 
     this->read_byte(&serialByte);
 
-    int32_t sensorId = sensorStateMachine(serialByte, &data);
+    int32_t sensorId = sensor_state_machine(serialByte, &data);
 
     if (sensorId > 0) {
       // char writeBuff[64];
@@ -212,7 +179,7 @@ bool HtzsafeOwlAlarm::activate_sensor(uint16_t id, uint32_t data) {
   for (uint8_t i; i < SensorCount; i++) {
     if (MotionSensors[i].id == id) {
       MotionSensors[i].active = true;
-      MotionSensors[i].timeActivated = millis();
+      MotionSensors[i].timeActivated = get_time();
       MotionSensors[i].sensor->publish_state(true);
 
       if(MotionSensors[i].dataSensor != nullptr) {
@@ -232,7 +199,7 @@ void htzsafe_owl_alarm::HtzsafeOwlAlarm::manage_sensors() {
   for (uint8_t i; i < SensorCount; i++) {
     // Check if need to deactivate sensor after timeout
     if (MotionSensors[i].active) {
-      if (millis() - MotionSensors[i].timeActivated > MotionSensors[i].timeoutMs) {
+      if (get_time() - MotionSensors[i].timeActivated > MotionSensors[i].timeoutMs) {
         MotionSensors[i].active = false;
         MotionSensors[i].sensor->publish_state(false);
       }
